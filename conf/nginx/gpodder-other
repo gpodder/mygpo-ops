@@ -1,0 +1,60 @@
+
+server {
+	listen 80 default_server;
+	listen [::]:80 default_server;
+
+    server_name _;
+
+    access_log  /var/log/nginx/gpoddernet.access.log;
+
+    root    /srv/mygpo/htdocs;
+
+    location ~ /(favicon.ico|favicon.png|robots.txt|clientconfig.json) {
+        expires 336h; # 2 weeks
+    }
+
+    location ~ /(api|toplist|subscriptions|suggestions|upload|getlist|gpodder-examples|search) {
+        proxy_redirect off;
+        proxy_set_header Host gpodder.net;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        client_max_body_size 10m;
+        client_body_buffer_size 128k;
+        proxy_connect_timeout 600;
+        proxy_send_timeout 600;
+        proxy_read_timeout 600;
+        proxy_buffers 32 4k;
+
+        proxy_set_header X-Forwarded-Proto http;
+        proxy_pass   http://mygpo_api;
+    }
+
+    location / {
+        rewrite ^ https://gpodder.net$request_uri? permanent;
+    }
+}
+
+server {
+    listen   443 ssl;
+    listen   [::]:443 ssl;
+
+    server_name  _;
+
+    access_log  /var/log/nginx/gpoddernet.access.log;
+
+    location / {
+        rewrite ^ https://gpodder.net$request_uri? permanent;
+    }
+
+    ssl_prefer_server_ciphers   on;
+    ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
+    ssl_ciphers EECDH+ECDSA+AESGCM:EECDH+aRSA+AESGCM:EECDH+ECDSA+SHA256:EECDH+aRSA+SHA256:EECDH+ECDSA+SHA384:EECDH+ECDSA+SHA256:EECDH+aRSA+SHA384:EDH+aRSA:EECDH:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!SRP:!DSS:!RC4;
+    ssl_dhparam            /etc/nginx/ssl/dhparam.txt;
+
+    ssl_certificate        /etc/letsencrypt/live/gpodder.net/fullchain.pem;
+    ssl_certificate_key    /etc/letsencrypt/live/gpodder.net/privkey.pem;
+
+
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+}

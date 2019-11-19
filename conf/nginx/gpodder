@@ -1,0 +1,31 @@
+
+server {
+    listen 80;
+    listen [::]:80;
+
+    server_name gpodder.net;
+
+    access_log  /var/log/nginx/gpoddernet.access.log;
+
+    root    /srv/mygpo/htdocs;
+
+    location ~ /(favicon.ico|favicon.png|robots.txt|clientconfig.json) {
+        expires 336h; # 2 weeks
+    }
+
+    location ~ /(api|toplist|subscriptions|suggestions|upload|getlist|gpodder-examples|search) {
+        include /etc/nginx/proxy.conf;
+        proxy_set_header X-Forwarded-Proto http;
+        proxy_pass   http://mygpo_api;
+    }
+
+    location / {
+        rewrite ^ https://gpodder.net$request_uri? permanent;
+    }
+
+    location '/.well-known' {
+        default_type "text/plain";
+        root /var/www/well-known;
+    }
+
+}

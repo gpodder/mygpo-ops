@@ -1,0 +1,8 @@
+#!/bin/sh
+
+certbot renew --nginx
+
+# To get a new certificate, run
+# letsencrypt-auto certonly --renew-by-default --webroot -w /var/www/well-known/ -d gpodder.net -d www.gpodder.net
+
+systemctl reload nginx

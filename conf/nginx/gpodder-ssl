@@ -1,0 +1,117 @@
+
+upstream mygpo_api {
+    #server 176.28.52.105:8000;
+    server unix:/tmp/mygpo.sock;
+    #server 127.0.0.1:8000;
+    keepalive 1024;
+}
+
+upstream mygpo_web {
+    #server 127.0.0.1:8000;
+    server unix:/tmp/mygpo.sock;
+    #server unix:/tmp/mygpo.sock;
+    #server unix:/tmp/mygpo.sock;
+    keepalive 1024;
+}
+
+# determine Request-ID for upstream request
+map $http_x_request_id $reqid {
+    default   $http_x_request_id;
+    ""        $request_id;
+}
+
+
+log_format trace '$remote_addr - $remote_user [$time_local] "$request" '
+                 '$status $body_bytes_sent "$http_referer" "$http_user_agent" '
+                 '"$http_x_forwarded_for" $reqid';
+
+server {
+    listen   443 ssl default_server;
+    listen   [::]:443 ssl default_server;
+
+    server_name  gpodder.net;
+
+    access_log  /var/log/nginx/gpoddernet.access.log;
+
+    root    /srv/mygpo/staticfiles/;
+
+    location /media {
+        root /srv/mygpo/media;
+        expires 336h; # 2 weeks
+        try_files $uri @proxy_to_app;
+    }
+
+    location /static/ {
+        alias /srv/mygpo/staticfiles/;
+#        try_files $uri @proxy_to_app;
+    }
+
+    location /logo {
+        root /srv/mygpo/media;
+        #root /srv/mygpo/htdocs/media;
+        try_files $uri @proxy_to_app;
+    }
+
+    location '/.well-known' {
+        default_type "text/plain";
+        root /var/www/well-known;
+    }
+
+
+    location / {
+        try_files $uri @proxy_to_app;
+    }
+
+    location /api {
+
+        location ~ @ {
+            return 404;
+        }
+
+        location ~ /\.json$ {
+            return 404;
+        }
+
+        include blockips.conf;
+        try_files $uri @proxy_to_app;
+    }
+
+    location @proxy_to_app {
+        include /etc/nginx/proxy.conf;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Request-ID $reqid;
+        add_header Strict-Transport-Security max-age=31536000;
+        add_header X-Frame-Options DENY;
+        proxy_pass   http://mygpo_web;
+        access_log /var/log/nginx/access_trace.log trace;
+    }
+
+    location /media/admin
+    {
+        alias /srv/mygpo/venv/lib/python2.7/site-packages/django/contrib/admin/static/admin;
+    }
+
+#    location /media {
+#        expires 336h; # 2 weeks
+#    }
+
+    location ~ /(favicon.ico|favicon.png|robots.txt|clientconfig.json) {
+        expires 336h; # 2 weeks
+    }
+
+    # deny access to .htaccess files, if Apache's document root
+    # concurs with nginx's one
+    location ~ /\.ht {
+        deny  all;
+    }
+
+    ssl_prefer_server_ciphers   on;
+    ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
+    ssl_ciphers EECDH+ECDSA+AESGCM:EECDH+aRSA+AESGCM:EECDH+ECDSA+SHA256:EECDH+aRSA+SHA256:EECDH+ECDSA+SHA384:EECDH+ECDSA+SHA256:EECDH+aRSA+SHA384:EDH+aRSA:EECDH:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!SRP:!DSS:!RC4;
+    ssl_dhparam            /etc/nginx/ssl/dhparam.txt;
+    ssl_certificate        /etc/letsencrypt/live/gpodder.net/fullchain.pem;
+    ssl_certificate_key    /etc/letsencrypt/live/gpodder.net/privkey.pem;
+
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+}

@@ -1,0 +1,31 @@
+
+upstream feedservice {
+    server unix:/tmp/mygpo-feedservice.sock;
+}
+
+server {
+    listen   80;
+    listen   [::]:80;
+
+    server_name  feeds.gpodder.net;
+
+    access_log  /var/log/nginx/feedservice.access.log;
+
+    root    /srv/mygpo-feedservice/htdocs;
+
+    location / {
+        try_files $uri @proxy_to_app;
+    }
+
+    location @proxy_to_app {
+        include /etc/nginx/proxy.conf;
+        proxy_set_header   X-Forwarded-Proto  http;
+        proxy_pass   http://feedservice;
+    }
+
+    # deny access to .htaccess files, if Apache's document root
+    # concurs with nginx's one
+    location ~ /\.ht {
+        deny  all;
+    }
+}
